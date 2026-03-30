@@ -133,19 +133,14 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
 }
 
-/* ===== HERO BANNER ===== */
 .hero-banner {
   position: relative; overflow: hidden;
-  background: linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%);
+  background: #F8F9FE;
   padding: 80px 24px; min-height: 420px;
   display: flex; align-items: center; justify-content: center;
 }
 .hero-particles {
-  position: absolute; inset: 0;
-  background-image: 
-    radial-gradient(circle at 20% 50%, rgba(108,92,231,0.3) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(0,206,201,0.2) 0%, transparent 50%),
-    radial-gradient(circle at 60% 80%, rgba(255,217,61,0.15) 0%, transparent 50%);
+  display: none;
 }
 .hero-content {
   position: relative; text-align: center; max-width: 800px;
@@ -160,16 +155,14 @@ img { max-width: 100%; display: block; }
 }
 @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.7} }
 .hero-title {
-  font-size: 48px; font-weight: 900; color: #fff;
+  font-size: 48px; font-weight: 900; color: #212529;
   line-height: 1.2; margin-bottom: 16px; letter-spacing: -1px;
 }
 .hero-title .gradient {
-  background: linear-gradient(135deg, var(--secondary), var(--accent));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
 }
 .hero-sub {
-  font-size: 18px; color: rgba(255,255,255,0.7); margin-bottom: 36px;
+  font-size: 18px; color: #495057; margin-bottom: 36px;
   line-height: 1.7;
 }
 .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
@@ -197,7 +190,7 @@ img { max-width: 100%; display: block; }
 .hero-stat-value {
   font-size: 32px; font-weight: 900; color: var(--secondary);
 }
-.hero-stat-label { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+.hero-stat-label { font-size: 13px; color: #6C757D; margin-top: 4px; }
 
 /* ===== NOTICE TICKER ===== */
 .notice-ticker {
@@ -393,15 +386,12 @@ img { max-width: 100%; display: block; }
 /* ===== LOGIN PAGE ===== */
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%);
+  background: #F8F9FE;
   display: flex; align-items: center; justify-content: center; padding: 40px 24px;
   position: relative; overflow: hidden;
 }
 .login-bg-effects {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    radial-gradient(circle at 30% 20%, rgba(108,92,231,0.3) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(0,206,201,0.2) 0%, transparent 50%);
+  display: none;
 }
 .login-container {
   position: relative; width: 100%; max-width: 480px;
@@ -413,8 +403,8 @@ img { max-width: 100%; display: block; }
   border-radius: var(--radius-xl); padding: 48px 40px;
 }
 .login-logo { text-align: center; margin-bottom: 36px; }
-.login-logo h1 { color: #fff; font-size: 32px; font-weight: 900; }
-.login-logo p { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 8px; }
+.login-logo h1 { color: #212529; font-size: 32px; font-weight: 900; }
+.login-logo p { color: #6C757D; font-size: 14px; margin-top: 8px; }
 .login-tabs { display: flex; margin-bottom: 32px; background: rgba(255,255,255,0.05); border-radius: var(--radius-full); padding: 4px; }
 .login-tab {
   flex: 1; padding: 12px; text-align: center; border-radius: var(--radius-full);
@@ -423,32 +413,32 @@ img { max-width: 100%; display: block; }
 }
 .login-tab.active { background: var(--primary); color: #fff; }
 .form-group { margin-bottom: 20px; }
-.form-label { display: block; font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 8px; font-weight: 500; }
+.form-label { display: block; font-size: 13px; color: #495057; margin-bottom: 8px; font-weight: 600; }
 .form-input {
   width: 100%; padding: 14px 16px; border-radius: var(--radius-md);
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  color: #fff; font-size: 15px; outline: none; transition: var(--transition);
+  background: #fff; border: 1px solid var(--border);
+  color: #212529; font-size: 15px; outline: none; transition: var(--transition);
 }
-.form-input::placeholder { color: rgba(255,255,255,0.3); }
+.form-input::placeholder { color: #ADB5BD; }
 .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(108,92,231,0.2); }
 .form-select {
   width: 100%; padding: 14px 16px; border-radius: var(--radius-md);
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  color: #fff; font-size: 15px; outline: none; appearance: none;
+  background: #fff; border: 1px solid var(--border);
+  color: #212529; font-size: 15px; outline: none; appearance: none;
 }
-.form-select option { background: var(--bg-dark); color: #fff; }
+.form-select option { background: #fff; color: #212529; }
 .file-upload-area {
-  border: 2px dashed rgba(255,255,255,0.2); border-radius: var(--radius-lg);
+  border: 2px dashed var(--border); border-radius: var(--radius-lg);
   padding: 32px; text-align: center; cursor: pointer;
-  transition: var(--transition);
+  background: #fff; transition: var(--transition);
 }
 .file-upload-area:hover { border-color: var(--primary); background: rgba(108,92,231,0.05); }
 .file-upload-area .icon { font-size: 40px; margin-bottom: 8px; }
-.file-upload-area p { color: rgba(255,255,255,0.5); font-size: 14px; }
-.file-upload-area .small { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+.file-upload-area p { color: #6C757D; font-size: 14px; }
+.file-upload-area .small { font-size: 12px; color: #ADB5BD; margin-top: 4px; }
 .btn-submit {
   width: 100%; padding: 16px; border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  background: var(--primary);
   color: #fff; font-size: 16px; font-weight: 700;
   transition: var(--transition); margin-top: 8px;
 }
@@ -800,7 +790,7 @@ img { max-width: 100%; display: block; }
 
 /* ===== PARTNER SECTION ===== */
 .partner-section {
-  background: linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%);
+  background: #F8F9FE;
   padding: 80px 24px;
 }
 .partner-grid {
