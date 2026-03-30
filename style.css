@@ -135,9 +135,14 @@ img { max-width: 100%; display: block; }
 
 .hero-banner {
   position: relative; overflow: hidden;
-  background: #F8F9FE;
+  background: #F8F9FE url('https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=2000&q=80') center/cover no-repeat;
   padding: 80px 24px; min-height: 420px;
   display: flex; align-items: center; justify-content: center;
+}
+.hero-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255, 255, 255, 0.85); /* White overlay to keep it clean */
+  backdrop-filter: blur(3px); /* Glassmorphism effect */
 }
 .hero-particles {
   display: none;
