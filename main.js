@@ -1,12 +1,17 @@
-// ===== 토이상단 메인 스토어 JS (v3 - 보안 + UX 전면 개선) =====
+// ===== 토이상단 메인 스토어 JS (v4 - Firebase 연동) =====
 
-// XSS 방지 유틸리티
-function escapeHtml(str) {
-  if (typeof str !== 'string') return str;
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+// XSS 방지 (firebase-service.js에 없을 때 fallback)
+if (typeof escapeHtml === 'undefined') {
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 }
+
+// Firebase 사용 가능 여부
+const USE_FIREBASE = (typeof firebase !== 'undefined' && typeof DB !== 'undefined');
 
 // 장바구니 (7일 만료)
 function loadCart() {
@@ -29,7 +34,44 @@ function saveCart() {
 let cart = loadCart();
 let currentSort = 'default';
 
-document.addEventListener('DOMContentLoaded', () => {
+// Firebase 데이터 로드 (실패 시 data.js fallback)
+async function loadFirebaseData() {
+  if (!USE_FIREBASE) return false;
+  try {
+    const [products, notices, qna, calendar] = await Promise.all([
+      ProductService.getAll(),
+      NoticeService.getAll(),
+      QnaService.getAll(),
+      CalendarService.getAll()
+    ]);
+    if (products.length > 0) {
+      PRODUCTS.length = 0;
+      products.forEach(p => PRODUCTS.push(p));
+    }
+    if (notices.length > 0) {
+      NOTICES.length = 0;
+      notices.forEach(n => NOTICES.push(n));
+    }
+    if (qna.length > 0) {
+      QNA_LIST.length = 0;
+      qna.forEach(q => QNA_LIST.push(q));
+    }
+    if (calendar.length > 0) {
+      CALENDAR_EVENTS.length = 0;
+      calendar.forEach(e => CALENDAR_EVENTS.push(e));
+    }
+    console.log('✅ Firebase 데이터 로드 완료');
+    return true;
+  } catch (err) {
+    console.warn('⚠️ Firebase 로드 실패, data.js fallback 사용:', err.message);
+    return false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Firebase 데이터 로드 시도
+  await loadFirebaseData();
+
   renderCalendar();
   renderProducts();
   renderNotices();
@@ -71,18 +113,38 @@ function initScrollAnimations() {
   });
 }
 
-// Login state
+// Login state (Firebase Auth 또는 localStorage fallback)
 function checkLoginState() {
-  const isLoggedIn = localStorage.getItem('toysangdan_logged_in') === 'true';
-  const loginBtn = document.getElementById('login-btn');
-  if (isLoggedIn && loginBtn) {
-    const user = JSON.parse(localStorage.getItem('toysangdan_user') || '{}');
-    loginBtn.textContent = escapeHtml(user.name) || '마이페이지';
-    loginBtn.href = '#mypage';
-    loginBtn.onclick = (e) => {
-      e.preventDefault();
-      showMyPage();
-    };
+  if (USE_FIREBASE && auth) {
+    auth.onAuthStateChanged(user => {
+      const loginBtn = document.getElementById('login-btn');
+      if (!loginBtn) return;
+      if (user) {
+        localStorage.setItem('toysangdan_logged_in', 'true');
+        localStorage.setItem('toysangdan_user', JSON.stringify({
+          id: user.uid, name: user.displayName || user.email?.split('@')[0] || '회원',
+          email: user.email, store: user.displayName || ''
+        }));
+        loginBtn.textContent = user.displayName || user.email?.split('@')[0] || '마이페이지';
+        loginBtn.href = '#mypage';
+        loginBtn.onclick = (e) => { e.preventDefault(); showMyPage(); };
+        renderProducts(); // 로그인 후 가격 표시 업데이트
+      } else {
+        localStorage.removeItem('toysangdan_logged_in');
+        loginBtn.textContent = '로그인';
+        loginBtn.href = 'login.html';
+        loginBtn.onclick = null;
+      }
+    });
+  } else {
+    const isLoggedIn = localStorage.getItem('toysangdan_logged_in') === 'true';
+    const loginBtn = document.getElementById('login-btn');
+    if (isLoggedIn && loginBtn) {
+      const user = JSON.parse(localStorage.getItem('toysangdan_user') || '{}');
+      loginBtn.textContent = escapeHtml(user.name) || '마이페이지';
+      loginBtn.href = '#mypage';
+      loginBtn.onclick = (e) => { e.preventDefault(); showMyPage(); };
+    }
   }
 }
 
@@ -537,7 +599,7 @@ function closeQnaModal() {
   document.getElementById('qna-modal').classList.remove('show');
 }
 
-function submitQna() {
+async function submitQna() {
   const title = document.getElementById('qna-title-input')?.value?.trim();
   const content = document.getElementById('qna-content-input')?.value?.trim();
   if (!title || !content) {
@@ -548,12 +610,27 @@ function submitQna() {
     showToast('⚠️ 입력 길이를 초과했습니다.');
     return;
   }
-  QNA_LIST.unshift({
-    id: QNA_LIST.length + 1,
-    author: '나의 매장',
-    date: new Date().toISOString().slice(0, 10),
-    title, content, reply: null, replyDate: null
-  });
+  const user = JSON.parse(localStorage.getItem('toysangdan_user') || '{}');
+  const qnaData = {
+    author: user.store || user.name || '나의 매장',
+    title, content
+  };
+
+  if (USE_FIREBASE) {
+    try {
+      await QnaService.create(qnaData);
+      const allQna = await QnaService.getAll();
+      QNA_LIST.length = 0;
+      allQna.forEach(q => QNA_LIST.push(q));
+    } catch (e) { console.warn('Firebase QNA 저장 실패:', e); }
+  } else {
+    QNA_LIST.unshift({
+      id: QNA_LIST.length + 1,
+      ...qnaData,
+      date: new Date().toISOString().slice(0, 10),
+      reply: null, replyDate: null
+    });
+  }
   showToast('✅ 질문이 등록되었습니다!');
   closeQnaModal();
   renderQna();
@@ -764,6 +841,22 @@ function submitCartOrder() {
 
   const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   const itemCount = cart.length;
+  const user = JSON.parse(localStorage.getItem('toysangdan_user') || '{}');
+
+  // Firebase에 주문 저장
+  if (USE_FIREBASE) {
+    try {
+      await OrderService.create({
+        customer: user.store || user.name || '회원',
+        customerId: user.id || '',
+        items: cart.map(item => ({ product: item.id, name: item.name, qty: item.qty, price: item.price })),
+        total,
+        memo: '',
+        payment: 'bank'
+      });
+    } catch (e) { console.warn('Firebase 주문 저장 실패:', e); }
+  }
+
   alert(`주문이 접수되었습니다!\n\n상품 ${itemCount}종 / 합계 ₩${total.toLocaleString()}\n\n입금 확인 후 발송 처리됩니다.\n카카오톡 채널로 주문 상세를 안내드리겠습니다.`);
   cart = [];
   saveCart();

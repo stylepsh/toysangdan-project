@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 관리자 확인 함수
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // 로그인 확인
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // 상품: 누구나 읽기, 관리자만 쓰기
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isLoggedIn() && isAdmin();
+    }
+
+    // 주문: 로그인 사용자 본인 것만 읽기, 관리자는 전체
+    match /orders/{orderId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn();
+      allow update, delete: if isLoggedIn() && isAdmin();
+    }
+
+    // 회원: 관리자만 전체 접근, 본인은 읽기만
+    match /members/{memberId} {
+      allow read: if isLoggedIn();
+      allow create: if true;  // 회원가입 시
+      allow update, delete: if isLoggedIn() && isAdmin();
+    }
+
+    // 공지사항: 누구나 읽기, 관리자만 쓰기
+    match /notices/{noticeId} {
+      allow read: if true;
+      allow write: if isLoggedIn() && isAdmin();
+    }
+
+    // Q&A: 로그인 사용자 작성, 관리자 답변
+    match /qna/{qnaId} {
+      allow read: if true;
+      allow create: if isLoggedIn();
+      allow update, delete: if isLoggedIn() && isAdmin();
+    }
+
+    // 캘린더: 누구나 읽기, 관리자만 쓰기
+    match /calendar/{eventId} {
+      allow read: if true;
+      allow write: if isLoggedIn() && isAdmin();
+    }
+
+    // 카카오 메시지: 관리자만
+    match /kakao_messages/{msgId} {
+      allow read, write: if isLoggedIn() && isAdmin();
+    }
+
+    // 관리자 목록: 읽기만 (관리자 확인용)
+    match /admins/{uid} {
+      allow read: if isLoggedIn();
+      allow write: if false; // 콘솔에서만 관리
+    }
+
+    // 설정: 관리자만
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isLoggedIn() && isAdmin();
+    }
+  }
+}

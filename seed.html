@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>토이상단 - 초기 데이터 시딩</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 60px auto; padding: 20px; background: #f8f9fe; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    p { color: #636e72; line-height: 1.7; }
+    .status { padding: 16px; border-radius: 12px; margin: 12px 0; font-size: 14px; }
+    .info { background: #e3f2fd; color: #1565c0; }
+    .success { background: #e8f5e9; color: #2e7d32; }
+    .error { background: #fce4ec; color: #c62828; }
+    .warn { background: #fff3e0; color: #e65100; }
+    button { padding: 14px 32px; border-radius: 12px; border: none; background: #6C5CE7; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; margin: 8px 4px; }
+    button:hover { background: #5A4BD1; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.danger { background: #E17055; }
+    #log { font-family: monospace; font-size: 13px; background: #1a1a2e; color: #00b894; padding: 20px; border-radius: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>🧸 토이상단 데이터 시딩</h1>
+  <p>Firebase Firestore에 초기 더미 데이터를 등록합니다.<br>이 작업은 <strong>한 번만</strong> 실행하세요.</p>
+
+  <div class="status warn">
+    ⚠️ 실행 전 <code>firebase-config.js</code>에 Firebase 프로젝트 설정값을 입력했는지 확인하세요.
+  </div>
+
+  <div>
+    <button onclick="runSeed()" id="seedBtn">🚀 시딩 시작</button>
+    <button onclick="createAdmin()" id="adminBtn">👤 관리자 계정 생성</button>
+    <button onclick="clearAll()" class="danger" id="clearBtn">🗑️ 전체 삭제</button>
+  </div>
+
+  <div id="log"></div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="data.js"></script>
+
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg) { logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
+    async function runSeed() {
+      document.getElementById('seedBtn').disabled = true;
+      log('=== 시딩 시작 ===');
+
+      try {
+        // 1. 상품
+        log('\n📦 상품 등록 중...');
+        for (const p of PRODUCTS) {
+          await DB.products.doc(p.id).set({
+            ...p,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${p.id} - ${p.name}`);
+        }
+
+        // 2. 주문
+        log('\n📋 주문 등록 중...');
+        for (const o of ORDERS) {
+          await DB.orders.doc(o.id).set({
+            ...o,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${o.id} - ${o.customer}`);
+        }
+
+        // 3. 회원
+        log('\n👥 회원 등록 중...');
+        for (const m of MEMBERS) {
+          await DB.members.doc(m.id).set({
+            ...m,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${m.id} - ${m.store}`);
+        }
+
+        // 4. 공지사항
+        log('\n📢 공지사항 등록 중...');
+        for (const n of NOTICES) {
+          await DB.notices.doc('notice_' + n.id).set({
+            ...n,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${n.title}`);
+        }
+
+        // 5. Q&A
+        log('\n💬 Q&A 등록 중...');
+        for (const q of QNA_LIST) {
+          await DB.qna.doc('qna_' + q.id).set({
+            ...q,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${q.title}`);
+        }
+
+        // 6. 캘린더
+        log('\n📅 캘린더 이벤트 등록 중...');
+        for (let i = 0; i < CALENDAR_EVENTS.length; i++) {
+          await DB.calendar.doc('cal_' + i).set({
+            ...CALENDAR_EVENTS[i],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${CALENDAR_EVENTS[i].title}`);
+        }
+
+        // 7. 카카오 메시지
+        log('\n💬 카카오 메시지 이력 등록 중...');
+        for (const k of KAKAO_MESSAGES) {
+          await DB.kakao.doc('kakao_' + k.id).set({
+            ...k,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          log(`  ✅ ${k.title}`);
+        }
+
+        // 8. 매출 데이터
+        log('\n📈 매출 데이터 등록 중...');
+        await DB.settings.doc('sales_data').set(SALES_DATA);
+        log('  ✅ 매출 데이터 저장 완료');
+
+        log('\n🎉 === 시딩 완료! 총 ' +
+          (PRODUCTS.length + ORDERS.length + MEMBERS.length + NOTICES.length +
+           QNA_LIST.length + CALENDAR_EVENTS.length + KAKAO_MESSAGES.length) +
+          '건 등록됨 ===');
+
+      } catch (err) {
+        log('\n❌ 에러: ' + err.message);
+        console.error(err);
+      }
+
+      document.getElementById('seedBtn').disabled = false;
+    }
+
+    async function createAdmin() {
+      const email = prompt('관리자 이메일:');
+      const pw = prompt('관리자 비밀번호 (6자 이상):');
+      if (!email || !pw) return;
+
+      try {
+        log('\n👤 관리자 계정 생성 중...');
+        const cred = await auth.createUserWithEmailAndPassword(email, pw);
+        await db.collection('admins').doc(cred.user.uid).set({
+          email: email,
+          role: 'admin',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        log(`✅ 관리자 계정 생성 완료: ${email} (uid: ${cred.user.uid})`);
+        log('이 계정으로 관리자 페이지에 로그인할 수 있습니다.');
+      } catch (err) {
+        log('❌ 에러: ' + err.message);
+      }
+    }
+
+    async function clearAll() {
+      if (!confirm('⚠️ 정말 모든 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+
+      log('\n🗑️ 전체 삭제 시작...');
+      const collections = ['products', 'orders', 'members', 'notices', 'qna', 'calendar', 'kakao_messages', 'settings'];
+
+      for (const col of collections) {
+        try {
+          const snap = await db.collection(col).get();
+          const batch = db.batch();
+          snap.docs.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+          log(`  🗑️ ${col}: ${snap.size}건 삭제`);
+        } catch (err) {
+          log(`  ❌ ${col} 삭제 실패: ${err.message}`);
+        }
+      }
+      log('✅ 전체 삭제 완료');
+    }
+  </script>
+</body>
+</html>

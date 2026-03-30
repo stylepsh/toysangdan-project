@@ -1,15 +1,19 @@
-// ===== 토이상단 관리자 JS =====
+// ===== 토이상단 관리자 JS (v2 - Firebase 연동) =====
 
-// XSS 방지
-function escapeHtml(str) {
-  if (typeof str !== 'string') return str;
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+const USE_FIREBASE = (typeof firebase !== 'undefined' && typeof DB !== 'undefined');
+
+// XSS 방지 (firebase-service.js에 없을 때 fallback)
+if (typeof escapeHtml === 'undefined') {
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 }
 
-// 관리자 인증
-const ADMIN_HASH = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'; // sha256("password")
+// ===== 관리자 인증 (Firebase Auth 우선, fallback SHA-256) =====
+const ADMIN_HASH = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
 async function sha256(message) {
   const encoder = new TextEncoder();
   const data = encoder.encode(message);
@@ -18,13 +22,26 @@ async function sha256(message) {
 }
 
 function checkAdminAuth() {
-  const token = sessionStorage.getItem('toysangdan_admin_auth');
-  if (token !== 'authenticated') {
+  if (USE_FIREBASE) {
+    // Firebase Auth 사용
+    const user = auth.currentUser;
+    if (user) {
+      document.querySelector('.admin-layout').style.display = 'flex';
+      return true;
+    }
     document.querySelector('.admin-layout').style.display = 'none';
     showAdminLogin();
     return false;
+  } else {
+    // Fallback: 세션 인증
+    const token = sessionStorage.getItem('toysangdan_admin_auth');
+    if (token !== 'authenticated') {
+      document.querySelector('.admin-layout').style.display = 'none';
+      showAdminLogin();
+      return false;
+    }
+    return true;
   }
-  return true;
 }
 
 function showAdminLogin() {
@@ -35,10 +52,11 @@ function showAdminLogin() {
     <div style="background:#fff;padding:48px 40px;border-radius:24px;box-shadow:0 8px 40px rgba(0,0,0,0.12);max-width:400px;width:100%;text-align:center;">
       <div style="font-size:48px;margin-bottom:16px;">🔐</div>
       <h2 style="font-size:24px;font-weight:800;margin-bottom:8px;">관리자 인증</h2>
-      <p style="font-size:14px;color:#636E72;margin-bottom:24px;">관리자 비밀번호를 입력하세요.</p>
-      <input type="password" id="admin-pw-input" style="width:100%;padding:14px 16px;border:1.5px solid #E9ECEF;border-radius:12px;font-size:15px;text-align:center;margin-bottom:16px;" placeholder="비밀번호" autofocus>
+      <p style="font-size:14px;color:#636E72;margin-bottom:24px;">${USE_FIREBASE ? '관리자 이메일/비밀번호를 입력하세요.' : '관리자 비밀번호를 입력하세요.'}</p>
+      ${USE_FIREBASE ? `<input type="email" id="admin-email-input" style="width:100%;padding:14px 16px;border:1.5px solid #E9ECEF;border-radius:12px;font-size:15px;text-align:center;margin-bottom:12px;" placeholder="관리자 이메일" autofocus>` : ''}
+      <input type="password" id="admin-pw-input" style="width:100%;padding:14px 16px;border:1.5px solid #E9ECEF;border-radius:12px;font-size:15px;text-align:center;margin-bottom:16px;" placeholder="비밀번호" ${USE_FIREBASE ? '' : 'autofocus'}>
       <button onclick="verifyAdminPassword()" style="width:100%;padding:14px;border-radius:12px;background:#6C5CE7;color:#fff;font-size:16px;font-weight:700;border:none;cursor:pointer;">인증하기</button>
-      <p id="admin-auth-error" style="color:#E17055;font-size:13px;margin-top:12px;display:none;">비밀번호가 올바르지 않습니다.</p>
+      <p id="admin-auth-error" style="color:#E17055;font-size:13px;margin-top:12px;display:none;">인증에 실패했습니다.</p>
       <a href="index.html" style="display:block;margin-top:20px;font-size:13px;color:#B2BEC3;">← 스토어로 돌아가기</a>
     </div>
   `;
@@ -50,23 +68,75 @@ function showAdminLogin() {
 
 async function verifyAdminPassword() {
   const pw = document.getElementById('admin-pw-input').value;
-  const hash = await sha256(pw);
-  if (hash === ADMIN_HASH) {
-    sessionStorage.setItem('toysangdan_admin_auth', 'authenticated');
-    document.getElementById('admin-auth-overlay')?.remove();
-    document.querySelector('.admin-layout').style.display = 'flex';
+
+  if (USE_FIREBASE) {
+    const email = document.getElementById('admin-email-input')?.value;
+    if (!email || !pw) {
+      document.getElementById('admin-auth-error').style.display = 'block';
+      return;
+    }
+    try {
+      await AuthService.login(email, pw);
+      const user = auth.currentUser;
+      const isAdmin = await AuthService.isAdmin(user.uid);
+      if (!isAdmin) {
+        await AuthService.logout();
+        document.getElementById('admin-auth-error').textContent = '관리자 권한이 없습니다.';
+        document.getElementById('admin-auth-error').style.display = 'block';
+        return;
+      }
+      document.getElementById('admin-auth-overlay')?.remove();
+      document.querySelector('.admin-layout').style.display = 'flex';
+      initAdminPage();
+    } catch (e) {
+      document.getElementById('admin-auth-error').textContent = '이메일 또는 비밀번호가 올바르지 않습니다.';
+      document.getElementById('admin-auth-error').style.display = 'block';
+    }
   } else {
-    document.getElementById('admin-auth-error').style.display = 'block';
-    document.getElementById('admin-pw-input').value = '';
-    document.getElementById('admin-pw-input').focus();
+    const hash = await sha256(pw);
+    if (hash === ADMIN_HASH) {
+      sessionStorage.setItem('toysangdan_admin_auth', 'authenticated');
+      document.getElementById('admin-auth-overlay')?.remove();
+      document.querySelector('.admin-layout').style.display = 'flex';
+    } else {
+      document.getElementById('admin-auth-error').textContent = '비밀번호가 올바르지 않습니다.';
+      document.getElementById('admin-auth-error').style.display = 'block';
+      document.getElementById('admin-pw-input').value = '';
+      document.getElementById('admin-pw-input').focus();
+    }
+  }
+}
+
+// Firebase에서 데이터 로드
+async function loadAdminFirebaseData() {
+  if (!USE_FIREBASE) return;
+  try {
+    const [products, orders, members, notices, qna, calendar, kakao] = await Promise.all([
+      ProductService.getAll(),
+      OrderService.getAll(),
+      MemberService.getAll(),
+      NoticeService.getAll(),
+      QnaService.getAll(),
+      CalendarService.getAll(),
+      KakaoService.getAll()
+    ]);
+    if (products.length > 0) { PRODUCTS.length = 0; products.forEach(p => PRODUCTS.push(p)); }
+    if (orders.length > 0) { ORDERS.length = 0; orders.forEach(o => ORDERS.push(o)); }
+    if (members.length > 0) { MEMBERS.length = 0; members.forEach(m => MEMBERS.push(m)); }
+    if (notices.length > 0) { NOTICES.length = 0; notices.forEach(n => NOTICES.push(n)); }
+    if (qna.length > 0) { QNA_LIST.length = 0; qna.forEach(q => QNA_LIST.push(q)); }
+    if (calendar.length > 0) { CALENDAR_EVENTS.length = 0; calendar.forEach(e => CALENDAR_EVENTS.push(e)); }
+    if (kakao.length > 0) { KAKAO_MESSAGES.length = 0; kakao.forEach(k => KAKAO_MESSAGES.push(k)); }
+    console.log('✅ Firebase 관리자 데이터 로드 완료');
+  } catch (e) {
+    console.warn('⚠️ Firebase 로드 실패, data.js fallback:', e.message);
   }
 }
 
 let salesChart;
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (!checkAdminAuth()) return;
-  // Fix sidebar badges (template literals don't work in HTML attributes)
+async function initAdminPage() {
+  await loadAdminFirebaseData();
   fixSidebarBadges();
   initDashboard();
   renderAdminProducts();
@@ -76,6 +146,27 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAdminQna();
   renderAdminNotices();
   renderAdminCalendar();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (USE_FIREBASE) {
+    // Firebase Auth 상태 확인 후 진행
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        const isAdmin = await AuthService.isAdmin(user.uid);
+        if (isAdmin) {
+          document.getElementById('admin-auth-overlay')?.remove();
+          document.querySelector('.admin-layout').style.display = 'flex';
+          await initAdminPage();
+          return;
+        }
+      }
+      checkAdminAuth();
+    });
+  } else {
+    if (!checkAdminAuth()) return;
+    initAdminPage();
+  }
 });
 
 function fixSidebarBadges() {
@@ -333,7 +424,7 @@ function removeProductImage() {
   document.getElementById('product-image-upload').style.display = 'block';
 }
 
-function saveProduct() {
+async function saveProduct() {
   const name = document.getElementById('pf-name').value;
   const category = document.getElementById('pf-category').value;
   const price = document.getElementById('pf-price').value;
@@ -344,27 +435,44 @@ function saveProduct() {
     return;
   }
 
-  PRODUCTS.unshift({
-    id: 'TS' + String(PRODUCTS.length + 1).padStart(3, '0'),
-    name, category, price: parseInt(price), retailPrice: parseInt(document.getElementById('pf-retail').value || 0),
+  const productData = {
+    name, category, price: parseInt(price),
+    retailPrice: parseInt(document.getElementById('pf-retail').value || 0),
     stock: parseInt(stock),
     vat: document.getElementById('vat-toggle').classList.contains('active'),
     shipping: document.getElementById('pf-shipping').value,
-    image: 'https://picsum.photos/seed/new' + Date.now() + '/400/400',
-    images: [],
     badge: '신상',
     memo: document.getElementById('pf-memo').value,
     desc: document.getElementById('pf-desc')?.value || '',
     spec: document.getElementById('pf-spec')?.value || '',
     minOrder: parseInt(document.getElementById('pf-minorder')?.value || 1),
     boxQty: document.getElementById('pf-boxqty')?.value || ''
-  });
+  };
 
-  showToast('✅ 상품이 등록되었습니다!');
+  if (USE_FIREBASE) {
+    try {
+      const imageFile = document.getElementById('product-image-input')?.files?.[0] || null;
+      const extraFiles = document.getElementById('product-extra-input')?.files || [];
+      const result = await ProductService.create(productData, imageFile, Array.from(extraFiles));
+      PRODUCTS.unshift(result);
+      showToast('✅ 상품이 등록되었습니다! (Firebase 저장)');
+    } catch (e) {
+      showToast('❌ 저장 실패: ' + e.message);
+      return;
+    }
+  } else {
+    PRODUCTS.unshift({
+      id: 'TS' + String(PRODUCTS.length + 1).padStart(3, '0'),
+      ...productData,
+      image: 'https://picsum.photos/seed/new' + Date.now() + '/400/400',
+      images: []
+    });
+    showToast('✅ 상품이 등록되었습니다!');
+  }
+
   toggleProductForm();
   renderAdminProducts();
-  
-  // Clear form
+
   ['pf-name','pf-price','pf-retail','pf-stock','pf-memo','pf-desc','pf-spec','pf-minorder','pf-boxqty'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -405,32 +513,47 @@ function editProduct(id) {
   document.getElementById('modal-overlay').classList.add('show');
 }
 
-function saveEditProduct(id) {
+async function saveEditProduct(id) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
-  p.name = document.getElementById('edit-name').value || p.name;
-  p.category = document.getElementById('edit-category').value || p.category;
-  p.price = parseInt(document.getElementById('edit-price').value) || p.price;
-  p.retailPrice = parseInt(document.getElementById('edit-retail').value) || 0;
-  p.stock = parseInt(document.getElementById('edit-stock').value) ?? p.stock;
-  p.minOrder = parseInt(document.getElementById('edit-minorder').value) || 1;
-  p.boxQty = document.getElementById('edit-boxqty').value || '';
-  p.desc = document.getElementById('edit-desc').value || '';
-  p.spec = document.getElementById('edit-spec').value || '';
-  p.memo = document.getElementById('edit-memo').value || '';
-  showToast('✅ 상품이 수정되었습니다!');
+  const updateData = {
+    name: document.getElementById('edit-name').value || p.name,
+    category: document.getElementById('edit-category').value || p.category,
+    price: parseInt(document.getElementById('edit-price').value) || p.price,
+    retailPrice: parseInt(document.getElementById('edit-retail').value) || 0,
+    stock: parseInt(document.getElementById('edit-stock').value) ?? p.stock,
+    minOrder: parseInt(document.getElementById('edit-minorder').value) || 1,
+    boxQty: document.getElementById('edit-boxqty').value || '',
+    desc: document.getElementById('edit-desc').value || '',
+    spec: document.getElementById('edit-spec').value || '',
+    memo: document.getElementById('edit-memo').value || ''
+  };
+
+  Object.assign(p, updateData);
+
+  if (USE_FIREBASE) {
+    try {
+      await ProductService.update(id, updateData);
+      showToast('✅ 상품이 수정되었습니다! (Firebase 저장)');
+    } catch (e) { showToast('⚠️ 로컬 수정 완료 (Firebase 동기화 실패)'); }
+  } else {
+    showToast('✅ 상품이 수정되었습니다!');
+  }
   closeModal();
   renderAdminProducts();
 }
 
 // 상품 삭제
-function deleteProduct(id) {
+async function deleteProduct(id) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
   if (confirm(`"${p.name}" 상품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
     const idx = PRODUCTS.findIndex(x => x.id === id);
     if (idx >= 0) {
       PRODUCTS.splice(idx, 1);
+      if (USE_FIREBASE) {
+        try { await ProductService.delete(id); } catch (e) { console.warn('Firebase 삭제 실패:', e); }
+      }
       showToast('🗑️ 상품이 삭제되었습니다.');
       renderAdminProducts();
     }
@@ -537,10 +660,13 @@ function applyBulkOrderAction() {
   }
 }
 
-function changeOrderStatus(orderId, newStatus) {
+async function changeOrderStatus(orderId, newStatus) {
   const order = ORDERS.find(o => o.id === orderId);
   if (order) {
     order.status = newStatus;
+    if (USE_FIREBASE) {
+      try { await OrderService.updateStatus(orderId, newStatus); } catch(e) { console.warn(e); }
+    }
     showToast(`주문 ${orderId} 상태가 변경되었습니다.`);
     renderOrders();
     fixSidebarBadges();
@@ -672,23 +798,25 @@ function renderMembers() {
   `).join('');
 }
 
-function approveMember(id) {
+async function approveMember(id) {
   const m = MEMBERS.find(x => x.id === id);
   if (m) {
     m.status = 'active';
     m.grade = 'bronze';
+    if (USE_FIREBASE) { try { await MemberService.approve(id); } catch(e) { console.warn(e); } }
     showToast(`✅ ${m.store} (${m.name}) 회원이 승인되었습니다!`);
     renderMembers();
     fixSidebarBadges();
   }
 }
 
-function rejectMember(id) {
+async function rejectMember(id) {
   if (confirm('정말 이 회원의 가입을 거절하시겠습니까?')) {
     const idx = MEMBERS.findIndex(x => x.id === id);
     if (idx >= 0) {
       const name = MEMBERS[idx].store;
       MEMBERS.splice(idx, 1);
+      if (USE_FIREBASE) { try { await MemberService.reject(id); } catch(e) { console.warn(e); } }
       showToast(`❌ ${name} 회원 가입이 거절되었습니다.`);
       renderMembers();
       fixSidebarBadges();
@@ -741,10 +869,11 @@ function showMemberDetail(id) {
   document.getElementById('modal-overlay').classList.add('show');
 }
 
-function changeMemberGrade(id, grade) {
+async function changeMemberGrade(id, grade) {
   const m = MEMBERS.find(x => x.id === id);
   if (m) {
     m.grade = grade;
+    if (USE_FIREBASE) { try { await MemberService.updateGrade(id, grade); } catch(e) { console.warn(e); } }
     showToast(`✅ ${m.store} 등급이 ${grade.toUpperCase()}로 변경되었습니다.`);
     closeModal();
     renderMembers();
@@ -778,7 +907,7 @@ function selectKakaoTarget(btn, target) {
   btn.classList.add('active');
 }
 
-function sendKakaoMessage() {
+async function sendKakaoMessage() {
   const title = document.getElementById('kakao-title').value;
   const content = document.getElementById('kakao-content').value;
   if (!title || !content) {
@@ -789,14 +918,16 @@ function sendKakaoMessage() {
   const targetText = activeTarget ? activeTarget.textContent : '전체 회원';
   const recipients = MEMBERS.filter(m => m.status === 'active').length;
 
-  KAKAO_MESSAGES.unshift({
-    id: KAKAO_MESSAGES.length + 1,
-    date: new Date().toLocaleString('ko-KR'),
-    type: 'all',
-    title, content,
-    sent: true,
-    recipients
-  });
+  const msgData = { type: 'all', title, content, recipients };
+
+  if (USE_FIREBASE) {
+    try {
+      const result = await KakaoService.create(msgData);
+      KAKAO_MESSAGES.unshift({ id: result.id, date: new Date().toLocaleString('ko-KR'), sent: true, ...msgData });
+    } catch(e) { KAKAO_MESSAGES.unshift({ id: KAKAO_MESSAGES.length + 1, date: new Date().toLocaleString('ko-KR'), sent: true, ...msgData }); }
+  } else {
+    KAKAO_MESSAGES.unshift({ id: KAKAO_MESSAGES.length + 1, date: new Date().toLocaleString('ko-KR'), sent: true, ...msgData });
+  }
 
   showToast(`📤 "${targetText}" ${recipients}명에게 카톡 메시지가 발송되었습니다!`);
   document.getElementById('kakao-title').value = '';
@@ -828,7 +959,7 @@ function toggleNoticeForm() {
   card.style.display = card.style.display === 'none' ? 'block' : 'none';
 }
 
-function saveNotice() {
+async function saveNotice() {
   const title = document.getElementById('notice-title-input').value;
   const content = document.getElementById('notice-content-input').value;
   const pinned = document.getElementById('notice-pin-toggle').classList.contains('active');
@@ -838,12 +969,16 @@ function saveNotice() {
     return;
   }
 
-  NOTICES.unshift({
-    id: NOTICES.length + 1,
-    title, content,
-    date: new Date().toISOString().slice(0, 10),
-    pinned
-  });
+  const noticeData = { title, content, pinned, date: new Date().toISOString().slice(0, 10) };
+
+  if (USE_FIREBASE) {
+    try {
+      const result = await NoticeService.create(noticeData);
+      NOTICES.unshift({ id: result.id, ...noticeData });
+    } catch (e) { NOTICES.unshift({ id: NOTICES.length + 1, ...noticeData }); }
+  } else {
+    NOTICES.unshift({ id: NOTICES.length + 1, ...noticeData });
+  }
 
   showToast('✅ 공지사항이 등록되었습니다!');
   toggleNoticeForm();
@@ -852,11 +987,13 @@ function saveNotice() {
   document.getElementById('notice-content-input').value = '';
 }
 
-function deleteNotice(id) {
+async function deleteNotice(id) {
   if (confirm('이 공지를 삭제하시겠습니까?')) {
-    const idx = NOTICES.findIndex(n => n.id === id);
+    const idx = NOTICES.findIndex(n => n.id === id || n.id === String(id));
     if (idx >= 0) {
+      const docId = NOTICES[idx].id;
       NOTICES.splice(idx, 1);
+      if (USE_FIREBASE) { try { await NoticeService.delete(String(docId)); } catch(e) { console.warn(e); } }
       renderAdminNotices();
       showToast('🗑️ 공지가 삭제되었습니다.');
     }
@@ -885,7 +1022,7 @@ function toggleCalendarForm() {
   card.style.display = card.style.display === 'none' ? 'block' : 'none';
 }
 
-function saveCalendarEvent() {
+async function saveCalendarEvent() {
   const date = document.getElementById('cal-date').value;
   const title = document.getElementById('cal-title').value;
   const items = parseInt(document.getElementById('cal-items').value || 0);
@@ -895,16 +1032,26 @@ function saveCalendarEvent() {
     return;
   }
 
-  CALENDAR_EVENTS.push({ date, title, type: 'incoming', items });
-  CALENDAR_EVENTS.sort((a, b) => a.date.localeCompare(b.date));
-  
+  const eventData = { date, title, type: 'incoming', items };
+  if (USE_FIREBASE) {
+    try {
+      const result = await CalendarService.create(eventData);
+      CALENDAR_EVENTS.push({ id: result.id, ...eventData });
+    } catch(e) { CALENDAR_EVENTS.push(eventData); }
+  } else {
+    CALENDAR_EVENTS.push(eventData);
+  }
+  CALENDAR_EVENTS.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+
   showToast('✅ 입고 일정이 등록되었습니다!');
   toggleCalendarForm();
   renderAdminCalendar();
 }
 
-function deleteCalendarEvent(idx) {
+async function deleteCalendarEvent(idx) {
   if (confirm('이 일정을 삭제하시겠습니까?')) {
+    const ev = CALENDAR_EVENTS[idx];
+    if (USE_FIREBASE && ev?.id) { try { await CalendarService.delete(ev.id); } catch(e) { console.warn(e); } }
     CALENDAR_EVENTS.splice(idx, 1);
     renderAdminCalendar();
     showToast('🗑️ 일정이 삭제되었습니다.');
@@ -971,27 +1118,30 @@ function showQnaReplyModal(id) {
   document.getElementById('modal-overlay').classList.add('show');
 }
 
-function saveQnaReply(id) {
+async function saveQnaReply(id) {
   const reply = document.getElementById('qna-reply-input')?.value;
   if (!reply) {
     showToast('⚠️ 답변 내용을 입력해주세요.');
     return;
   }
-  const q = QNA_LIST.find(x => x.id === id);
+  const q = QNA_LIST.find(x => x.id === id || x.id === String(id));
   if (q) {
     q.reply = reply;
     q.replyDate = new Date().toISOString().slice(0, 10);
+    if (USE_FIREBASE) { try { await QnaService.reply(String(q.id), reply); } catch(e) { console.warn(e); } }
     showToast('✅ 답변이 등록되었습니다!');
     closeModal();
     renderAdminQna();
   }
 }
 
-function deleteQna(id) {
+async function deleteQna(id) {
   if (confirm('이 질문을 삭제하시겠습니까?')) {
-    const idx = QNA_LIST.findIndex(q => q.id === id);
+    const idx = QNA_LIST.findIndex(q => q.id === id || q.id === String(id));
     if (idx >= 0) {
+      const docId = QNA_LIST[idx].id;
       QNA_LIST.splice(idx, 1);
+      if (USE_FIREBASE) { try { await QnaService.delete(String(docId)); } catch(e) { console.warn(e); } }
       renderAdminQna();
       showToast('🗑️ 질문이 삭제되었습니다.');
     }
