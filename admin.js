@@ -1,8 +1,71 @@
 // ===== 토이상단 관리자 JS =====
 
+// XSS 방지
+function escapeHtml(str) {
+  if (typeof str !== 'string') return str;
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// 관리자 인증
+const ADMIN_HASH = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'; // sha256("password")
+async function sha256(message) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function checkAdminAuth() {
+  const token = sessionStorage.getItem('toysangdan_admin_auth');
+  if (token !== 'authenticated') {
+    document.querySelector('.admin-layout').style.display = 'none';
+    showAdminLogin();
+    return false;
+  }
+  return true;
+}
+
+function showAdminLogin() {
+  const overlay = document.createElement('div');
+  overlay.id = 'admin-auth-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#F8F9FE;z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#fff;padding:48px 40px;border-radius:24px;box-shadow:0 8px 40px rgba(0,0,0,0.12);max-width:400px;width:100%;text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">🔐</div>
+      <h2 style="font-size:24px;font-weight:800;margin-bottom:8px;">관리자 인증</h2>
+      <p style="font-size:14px;color:#636E72;margin-bottom:24px;">관리자 비밀번호를 입력하세요.</p>
+      <input type="password" id="admin-pw-input" style="width:100%;padding:14px 16px;border:1.5px solid #E9ECEF;border-radius:12px;font-size:15px;text-align:center;margin-bottom:16px;" placeholder="비밀번호" autofocus>
+      <button onclick="verifyAdminPassword()" style="width:100%;padding:14px;border-radius:12px;background:#6C5CE7;color:#fff;font-size:16px;font-weight:700;border:none;cursor:pointer;">인증하기</button>
+      <p id="admin-auth-error" style="color:#E17055;font-size:13px;margin-top:12px;display:none;">비밀번호가 올바르지 않습니다.</p>
+      <a href="index.html" style="display:block;margin-top:20px;font-size:13px;color:#B2BEC3;">← 스토어로 돌아가기</a>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('admin-pw-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') verifyAdminPassword();
+  });
+}
+
+async function verifyAdminPassword() {
+  const pw = document.getElementById('admin-pw-input').value;
+  const hash = await sha256(pw);
+  if (hash === ADMIN_HASH) {
+    sessionStorage.setItem('toysangdan_admin_auth', 'authenticated');
+    document.getElementById('admin-auth-overlay')?.remove();
+    document.querySelector('.admin-layout').style.display = 'flex';
+  } else {
+    document.getElementById('admin-auth-error').style.display = 'block';
+    document.getElementById('admin-pw-input').value = '';
+    document.getElementById('admin-pw-input').focus();
+  }
+}
+
 let salesChart;
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (!checkAdminAuth()) return;
   // Fix sidebar badges (template literals don't work in HTML attributes)
   fixSidebarBadges();
   initDashboard();
@@ -195,8 +258,8 @@ function renderAdminProducts() {
       <td>
         <div style="display:flex;gap:4px;">
           <button class="btn btn-sm btn-outline" title="상품 복제" onclick="duplicateProduct('${p.id}')">📑</button>
-          <button class="btn btn-sm btn-outline" title="수정" onclick="showToast('수정 기능 (데모)')">✏️</button>
-          <button class="btn btn-sm btn-outline" title="삭제" style="color:var(--danger);border-color:var(--danger);" onclick="showToast('삭제 기능 (데모)')">🗑️</button>
+          <button class="btn btn-sm btn-outline" title="수정" onclick="editProduct('${p.id}')">✏️</button>
+          <button class="btn btn-sm btn-outline" title="삭제" style="color:var(--danger);border-color:var(--danger);" onclick="deleteProduct('${p.id}')">🗑️</button>
         </div>
       </td>
     </tr>
@@ -306,6 +369,72 @@ function saveProduct() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+}
+
+// 상품 수정
+function editProduct(id) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modal-content').innerHTML = `
+    <h2>✏️ 상품 수정 - ${escapeHtml(p.name)}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="admin-form-group"><label>상품명 *</label><input type="text" class="admin-form-input" id="edit-name" value="${escapeHtml(p.name)}"></div>
+      <div class="admin-form-group"><label>카테고리 *</label>
+        <select class="admin-form-select" id="edit-category">
+          ${CATEGORIES.filter(c=>c!=='전체').map(c=>`<option ${c===p.category?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="admin-form-group"><label>도매가 (원)</label><input type="number" class="admin-form-input" id="edit-price" value="${p.price}"></div>
+      <div class="admin-form-group"><label>소비자가 (원)</label><input type="number" class="admin-form-input" id="edit-retail" value="${p.retailPrice||0}"></div>
+      <div class="admin-form-group"><label>재고</label><input type="number" class="admin-form-input" id="edit-stock" value="${p.stock}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div class="admin-form-group"><label>최소 주문수량</label><input type="number" class="admin-form-input" id="edit-minorder" value="${p.minOrder||1}"></div>
+      <div class="admin-form-group"><label>포장단위</label><input type="text" class="admin-form-input" id="edit-boxqty" value="${escapeHtml(p.boxQty||'')}"></div>
+    </div>
+    <div class="admin-form-group" style="margin-bottom:16px;"><label>상세 설명</label><textarea class="admin-form-textarea" id="edit-desc" style="min-height:80px;">${escapeHtml(p.desc||'')}</textarea></div>
+    <div class="admin-form-group" style="margin-bottom:16px;"><label>스펙</label><textarea class="admin-form-textarea" id="edit-spec" style="min-height:60px;">${escapeHtml(p.spec||'')}</textarea></div>
+    <div class="admin-form-group" style="margin-bottom:16px;"><label>메모</label><textarea class="admin-form-textarea" id="edit-memo">${escapeHtml(p.memo||'')}</textarea></div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveEditProduct('${escapeHtml(p.id)}')">💾 저장</button>
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function saveEditProduct(id) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  p.name = document.getElementById('edit-name').value || p.name;
+  p.category = document.getElementById('edit-category').value || p.category;
+  p.price = parseInt(document.getElementById('edit-price').value) || p.price;
+  p.retailPrice = parseInt(document.getElementById('edit-retail').value) || 0;
+  p.stock = parseInt(document.getElementById('edit-stock').value) ?? p.stock;
+  p.minOrder = parseInt(document.getElementById('edit-minorder').value) || 1;
+  p.boxQty = document.getElementById('edit-boxqty').value || '';
+  p.desc = document.getElementById('edit-desc').value || '';
+  p.spec = document.getElementById('edit-spec').value || '';
+  p.memo = document.getElementById('edit-memo').value || '';
+  showToast('✅ 상품이 수정되었습니다!');
+  closeModal();
+  renderAdminProducts();
+}
+
+// 상품 삭제
+function deleteProduct(id) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  if (confirm(`"${p.name}" 상품을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+    const idx = PRODUCTS.findIndex(x => x.id === id);
+    if (idx >= 0) {
+      PRODUCTS.splice(idx, 1);
+      showToast('🗑️ 상품이 삭제되었습니다.');
+      renderAdminProducts();
+    }
+  }
 }
 
 function addExtraImages(input) {
@@ -880,3 +1009,23 @@ function showToast(msg) {
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('show');
 }
+
+// ===== DARK MODE =====
+function toggleDarkMode() {
+  document.body.classList.toggle('dark-mode');
+  const isDark = document.body.classList.contains('dark-mode');
+  localStorage.setItem('toysangdan_admin_dark', isDark ? 'true' : 'false');
+  const icon = document.getElementById('dark-mode-icon');
+  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+}
+
+// 다크모드 초기화
+(function() {
+  if (localStorage.getItem('toysangdan_admin_dark') === 'true') {
+    document.body.classList.add('dark-mode');
+    setTimeout(() => {
+      const icon = document.getElementById('dark-mode-icon');
+      if (icon) icon.textContent = '☀️';
+    }, 0);
+  }
+})();

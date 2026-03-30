@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>관리자 | 토이상단</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-6B4GgLFnGEOL0Gg6kPbiUkFbGHGSnjPpvuFbmTqOyNRQfD3MJZHBOcgW0a/Kz6e" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-gGPP65mR8t2TN7Q7UqG3u12Jv5Xp7RnxjfMM2i3PXDMQ3sPYe3NnKCjzLhBF4b" crossorigin="anonymous"></script>
   <script src="data.js"></script>
 </head>
 <body>
@@ -53,6 +53,9 @@
         </div>
       </nav>
       <div style="padding:16px 12px; border-top:1px solid rgba(255,255,255,0.06);">
+        <div class="admin-nav-item" style="margin:0;margin-bottom:4px;color:rgba(255,255,255,0.4);" onclick="toggleDarkMode()">
+          <span class="icon" id="dark-mode-icon">🌙</span><span>다크모드</span>
+        </div>
         <a href="index.html" class="admin-nav-item" style="margin:0;color:rgba(255,255,255,0.4);">
           <span class="icon">🏠</span><span>스토어 보기</span>
         </a>
