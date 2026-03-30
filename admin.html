@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 | 토이상단</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="data.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-logo">
+        <div class="logo-icon" style="width:36px;height:36px;border-radius:10px;font-size:18px;">🧸</div>
+        <h2>토이상단</h2>
+        <span class="badge-admin">관리자</span>
+      </div>
+      <nav class="admin-nav">
+        <div class="admin-nav-item active" onclick="switchAdminTab('dashboard')">
+          <span class="icon">📊</span><span>대시보드</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('products')">
+          <span class="icon">📦</span><span>상품 관리</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('orders')">
+          <span class="icon">📋</span><span>주문 관리</span>
+          <span class="nav-badge">${ORDERS.filter(o=>o.status==='pending').length}</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('members')">
+          <span class="icon">👥</span><span>회원 관리</span>
+          <span class="nav-badge">${MEMBERS.filter(m=>m.status==='pending').length}</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('kakao')">
+          <span class="icon">💬</span><span>카톡 메시지</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('notices')">
+          <span class="icon">📢</span><span>공지사항</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('calendar')">
+          <span class="icon">📅</span><span>입고 캘린더</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('tax')">
+          <span class="icon">🧾</span><span>세금계산서</span>
+        </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('settings')">
+          <span class="icon">⚙️</span><span>설정</span>
+        </div>
+      </nav>
+      <div style="padding:16px 12px; border-top:1px solid rgba(255,255,255,0.06);">
+        <a href="index.html" class="admin-nav-item" style="margin:0;color:rgba(255,255,255,0.4);">
+          <span class="icon">🏠</span><span>스토어 보기</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+
+      <!-- ========== DASHBOARD TAB ========== -->
+      <div class="admin-tab-content active" id="tab-dashboard">
+        <div class="admin-header">
+          <h1>📊 대시보드</h1>
+          <div class="admin-header-actions">
+            <span style="font-size:14px;color:var(--text-secondary);">2026년 3월 29일 (토)</span>
+          </div>
+        </div>
+
+        <!-- Today's To-Do Alert Banner (Client Appeal) -->
+        <div class="dashboard-todo-banner" style="background:var(--primary);color:#fff;padding:16px 20px;border-radius:var(--radius-md);margin-bottom:24px;display:flex;align-items:center;gap:16px;">
+          <div style="font-size:24px;">🔔</div>
+          <div style="flex:1;">
+            <h3 style="margin:0 0 4px 0;font-size:16px;">오늘 처리해야 할 업무가 있습니다!</h3>
+            <p style="margin:0;font-size:13px;opacity:0.9;">
+              입금 대기 <strong id="todo-pending" style="color:#FFE082;">0</strong>건 · 
+              발송 전(송장입력 대기) <strong id="todo-shipping" style="color:#FFE082;">0</strong>건 · 
+              신규 회원 승인 대기 <strong id="todo-members" style="color:#FFE082;">0</strong>건
+            </p>
+          </div>
+          <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:none;" onclick="switchAdminTab('orders')">주문 처리하러 가기 ↗</button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-icon purple">📦</div>
+            <div class="kpi-value" id="kpi-orders">0</div>
+            <div class="kpi-label">오늘 주문</div>
+            <div class="kpi-change up">▲ 15% vs 어제</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon green">💰</div>
+            <div class="kpi-value" id="kpi-revenue">₩0</div>
+            <div class="kpi-label">오늘 매출</div>
+            <div class="kpi-change up">▲ 23% vs 어제</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon orange">👥</div>
+            <div class="kpi-value" id="kpi-members">0</div>
+            <div class="kpi-label">활성 회원</div>
+            <div class="kpi-change up">+2 신규</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon blue">⚠️</div>
+            <div class="kpi-value" id="kpi-lowstock">0</div>
+            <div class="kpi-label">재고 부족 상품</div>
+            <div class="kpi-change down">주의 필요</div>
+          </div>
+        </div>
+
+        <!-- Charts & Recent Orders -->
+        <div class="admin-grid-2">
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>📈 매출 현황</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-sm btn-outline" onclick="updateChart('weekly')">주간</button>
+                <button class="btn btn-sm btn-primary" onclick="updateChart('monthly')">월간</button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="salesChart"></canvas>
+            </div>
+          </div>
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>🔥 인기 상품 TOP 5</h3>
+            </div>
+            <div id="top-products"></div>
+          </div>
+        </div>
+
+        <!-- Recent Orders -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>📋 최근 주문</h3>
+            <button class="btn btn-sm btn-outline" onclick="switchAdminTab('orders')">전체보기</button>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>주문번호</th><th>주문일</th><th>고객</th><th>금액</th><th>상태</th>
+              </tr>
+            </thead>
+            <tbody id="recent-orders"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== PRODUCTS TAB ========== -->
+      <div class="admin-tab-content" id="tab-products">
+        <div class="admin-header">
+          <h1>📦 상품 관리</h1>
+          <div class="admin-header-actions">
+            <button class="btn btn-primary" onclick="toggleProductForm()">+ 새 상품 등록</button>
+          </div>
+        </div>
+
+        <!-- Product Upload Form -->
+        <div class="admin-card" id="product-form-card" style="display:none;">
+          <div class="admin-card-header">
+            <h3>새 상품 등록</h3>
+            <button class="btn btn-sm btn-outline" onclick="toggleProductForm()">✕ 닫기</button>
+          </div>
+          <div class="upload-form">
+            <div class="admin-form-group">
+              <label>썸네일 이미지</label>
+              <div class="admin-image-upload" id="product-image-upload" onclick="document.getElementById('product-image-input').click()">
+                <div class="icon">📸</div>
+                <p>클릭하여 이미지 업로드</p>
+                <p class="small">JPG, PNG (권장: 400x400px)</p>
+              </div>
+              <input type="file" id="product-image-input" accept="image/*" style="display:none;" onchange="previewProductImage(this)">
+              <div id="product-image-preview" style="display:none;" class="admin-image-preview"></div>
+            </div>
+            <div>
+              <div class="admin-form-group" style="margin-bottom:16px;">
+                <label>상품명 *</label>
+                <input type="text" class="admin-form-input" placeholder="예: 산리오 쿠로미 봉제인형 25cm" id="pf-name">
+              </div>
+              <div class="admin-form-group" style="margin-bottom:16px;">
+                <label>카테고리 *</label>
+                <select class="admin-form-select" id="pf-category">
+                  <option value="">선택</option>
+                  <option>소형인형</option><option>중형인형</option><option>대형인형</option>
+                  <option>키링</option><option>피규어</option><option>랜덤박스</option>
+                </select>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div class="admin-form-group">
+                  <label>도매가 (원) *</label>
+                  <input type="number" class="admin-form-input" placeholder="4500" id="pf-price">
+                </div>
+                <div class="admin-form-group">
+                  <label>소비자가 (원)</label>
+                  <input type="number" class="admin-form-input" placeholder="12900" id="pf-retail">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div class="admin-form-group">
+                  <label>수량 (재고) *</label>
+                  <input type="number" class="admin-form-input" placeholder="100" id="pf-stock">
+                </div>
+                <div class="admin-form-group">
+                  <label>배송 타입</label>
+                  <select class="admin-form-select" id="pf-shipping">
+                    <option value="overseas">해외배송 (7~14일)</option>
+                    <option value="domestic">국내 당일출고</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="admin-form-group full-width" style="margin-bottom:16px;">
+              <label>부가세 포함 여부</label>
+              <div class="toggle-switch">
+                <div class="toggle-track active" id="vat-toggle" onclick="toggleVat()">
+                  <div class="toggle-thumb"></div>
+                </div>
+                <span class="toggle-label" id="vat-label">부가세 포함</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="full-width">
+              <div class="admin-form-group">
+                <label>최소 주문 수량</label>
+                <input type="number" class="admin-form-input" placeholder="예: 50" id="pf-minorder">
+              </div>
+              <div class="admin-form-group">
+                <label>포장 단위</label>
+                <input type="text" class="admin-form-input" placeholder="예: 1박스 = 50개" id="pf-boxqty">
+              </div>
+            </div>
+            <div class="admin-form-group full-width" style="margin-top:16px;">
+              <label>📸 추가 이미지 (상세 페이지용)</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;" id="pf-extra-images">
+                <div class="admin-image-upload" style="width:100px;height:100px;padding:16px;font-size:12px;" onclick="document.getElementById('product-extra-input').click()">
+                  <div class="icon" style="font-size:24px;">+</div>
+                  <p style="font-size:11px;">추가</p>
+                </div>
+              </div>
+              <input type="file" id="product-extra-input" accept="image/*" multiple style="display:none;" onchange="addExtraImages(this)">
+            </div>
+            <div class="admin-form-group full-width" style="margin-top:16px;">
+              <label>📝 상세 설명 (고객에게 보이는 설명)</label>
+              <textarea class="admin-form-textarea" placeholder="상품의 특징, 소재, 활용처 등을 고객이 볼 수 있도록 작성하세요." id="pf-desc" style="min-height:80px;"></textarea>
+            </div>
+            <div class="admin-form-group full-width">
+              <label>📋 상품 스펙 (상세정보)</label>
+              <textarea class="admin-form-textarea" placeholder="소재: 극세사 PP솜 | 크기: 25cm | 무게: 약 150g | KC인증: 완료" id="pf-spec" style="min-height:60px;"></textarea>
+              <p style="font-size:11px;color:var(--text-light);margin-top:4px;">항목은 | 로 구분, 각 항목은 '항목명: 값' 형식으로 작성</p>
+            </div>
+            <div class="admin-form-group full-width">
+              <label>메모 (관리자 참고용)</label>
+              <textarea class="admin-form-textarea" placeholder="입고일, 박스당 수량, 특이사항 등" id="pf-memo"></textarea>
+            </div>
+            <div class="full-width" style="display:flex;gap:12px;justify-content:flex-end;margin-top:12px;">
+              <button class="btn btn-outline" onclick="toggleProductForm()">취소</button>
+              <button class="btn btn-primary" onclick="saveProduct()">💾 상품 등록</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product List -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>등록 상품 목록 (<span id="product-count">0</span>개)</h3>
+            <div class="filter-bar" style="margin-bottom:0;">
+              <input type="text" class="admin-form-input" placeholder="🔍 상품 검색" style="min-width:200px;" id="product-search" oninput="renderAdminProducts()">
+              <select class="admin-form-select" id="product-filter-cat" onchange="renderAdminProducts()">
+                <option value="">전체 카테고리</option>
+                <option>소형인형</option><option>중형인형</option><option>대형인형</option>
+                <option>키링</option><option>피규어</option><option>랜덤박스</option>
+              </select>
+            </div>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>이미지</th><th>상품명</th><th>카테고리</th><th>도매가</th><th>재고</th><th>VAT</th><th>배송</th><th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="product-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== ORDERS TAB ========== -->
+      <div class="admin-tab-content" id="tab-orders">
+        <div class="admin-header">
+          <h1>📋 주문 관리</h1>
+          <div class="admin-header-actions">
+            <button class="btn btn-success" onclick="downloadExcel()">📥 엑셀 다운로드</button>
+            <button class="btn btn-outline" onclick="printOrders()">🖨️ 인쇄</button>
+          </div>
+        </div>
+
+        <!-- Filters & Bulk Actions -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <div class="filter-bar" style="margin-bottom:0;">
+            <input type="date" class="admin-form-input" id="order-date-from" style="min-width:160px;">
+            <span style="color:var(--text-light);">~</span>
+            <input type="date" class="admin-form-input" id="order-date-to" style="min-width:160px;">
+            <select class="admin-form-select" id="order-status-filter" onchange="renderOrders()">
+              <option value="">전체 상태</option>
+              <option value="pending">입금대기</option>
+              <option value="confirmed">입금확인</option>
+              <option value="shipped">발송완료</option>
+              <option value="completed">거래완료</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="renderOrders()">검색</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;background:var(--bg);padding:8px 12px;border-radius:var(--radius-md);border:1px solid var(--border-light);">
+            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">선택 항목</span>
+            <select class="admin-form-select" style="font-size:13px;padding:4px 8px;min-width:100px;" id="bulk-action-status">
+              <option value="confirmed">입금확인 처리</option>
+              <option value="shipped">발송완료(송장입력)</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="applyBulkOrderAction()">일괄 적용</button>
+          </div>
+        </div>
+
+        <!-- Order Stats -->
+        <div class="filter-bar">
+          <input type="date" class="admin-form-input" id="order-date-from" style="min-width:160px;">
+          <span style="color:var(--text-light);">~</span>
+          <input type="date" class="admin-form-input" id="order-date-to" style="min-width:160px;">
+          <select class="admin-form-select" id="order-status-filter" onchange="renderOrders()">
+            <option value="">전체 상태</option>
+            <option value="pending">입금대기</option>
+            <option value="confirmed">입금확인</option>
+            <option value="shipped">발송완료</option>
+            <option value="completed">거래완료</option>
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="renderOrders()">검색</button>
+        </div>
+
+        <!-- Order Stats -->
+        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+          <div style="padding:12px 20px;background:#FFF3E0;border-radius:var(--radius-md);font-size:14px;font-weight:600;color:#E65100;">
+            ⏳ 입금대기 <span id="os-pending">0</span>건
+          </div>
+          <div style="padding:12px 20px;background:#E3F2FD;border-radius:var(--radius-md);font-size:14px;font-weight:600;color:#1565C0;">
+            ✅ 입금확인 <span id="os-confirmed">0</span>건
+          </div>
+          <div style="padding:12px 20px;background:#E8F5E9;border-radius:var(--radius-md);font-size:14px;font-weight:600;color:#2E7D32;">
+            🚚 발송완료 <span id="os-shipped">0</span>건
+          </div>
+          <div style="padding:12px 20px;background:#F3E5F5;border-radius:var(--radius-md);font-size:14px;font-weight:600;color:#7B1FA2;">
+            📦 거래완료 <span id="os-completed">0</span>건
+          </div>
+        </div>
+
+        <!-- Orders Table -->
+        <div class="admin-card">
+          <table class="admin-table" id="orders-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="select-all-orders" onchange="toggleAllOrders(this)"></th>
+                <th>주문번호</th><th>주문일</th><th>고객</th><th>상품</th><th>금액</th><th>상태</th><th>메모</th><th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="order-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== MEMBERS TAB ========== -->
+      <div class="admin-tab-content" id="tab-members">
+        <div class="admin-header">
+          <h1>👥 회원 관리</h1>
+        </div>
+
+        <!-- Pending Approvals -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>🔔 승인 대기 회원</h3>
+          </div>
+          <div id="pending-members"></div>
+        </div>
+
+        <!-- Active Members -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>활성 회원 목록</h3>
+            <div class="filter-bar" style="margin-bottom:0;">
+              <input type="text" class="admin-form-input" placeholder="🔍 이름/매장 검색" id="member-search" oninput="renderMembers()">
+              <select class="admin-form-select" id="member-grade-filter" onchange="renderMembers()">
+                <option value="">전체 등급</option>
+                <option value="gold">골드</option>
+                <option value="silver">실버</option>
+                <option value="bronze">브론즈</option>
+              </select>
+            </div>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>매장명</th><th>대표자</th><th>연락처</th><th>등급</th><th>가입경로</th><th>누적주문</th><th>누적금액</th><th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="member-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== KAKAO TAB ========== -->
+      <div class="admin-tab-content" id="tab-kakao">
+        <div class="admin-header">
+          <h1>💬 카카오톡 메시지</h1>
+        </div>
+
+        <div class="admin-grid-equal">
+          <!-- Compose -->
+          <div class="kakao-compose">
+            <h3>✏️ 새 메시지 보내기</h3>
+            <div class="admin-form-group" style="margin-bottom:12px;">
+              <label style="font-size:13px;font-weight:600;color:#5D4037;margin-bottom:8px;display:block;">발송 대상</label>
+              <div class="kakao-target">
+                <button class="kakao-target-btn active" onclick="selectKakaoTarget(this,'all')">전체 회원</button>
+                <button class="kakao-target-btn" onclick="selectKakaoTarget(this,'gold')">골드 회원</button>
+                <button class="kakao-target-btn" onclick="selectKakaoTarget(this,'silver')">실버 회원</button>
+                <button class="kakao-target-btn" onclick="selectKakaoTarget(this,'bronze')">브론즈 회원</button>
+              </div>
+            </div>
+            <div class="admin-form-group" style="margin-bottom:12px;">
+              <label style="font-size:13px;font-weight:600;color:#5D4037;margin-bottom:8px;display:block;">제목</label>
+              <input type="text" class="admin-form-input" placeholder="메시지 제목" id="kakao-title" style="background:#fff;">
+            </div>
+            <div class="admin-form-group">
+              <label style="font-size:13px;font-weight:600;color:#5D4037;margin-bottom:8px;display:block;">내용</label>
+              <textarea class="admin-form-textarea" placeholder="발송할 메시지 내용을 입력하세요..." id="kakao-content" style="background:#fff;min-height:120px;"></textarea>
+            </div>
+            <button class="kakao-send-btn" onclick="sendKakaoMessage()">📤 카카오톡 발송하기</button>
+          </div>
+
+          <!-- History -->
+          <div class="admin-card" style="margin-bottom:0;">
+            <div class="admin-card-header">
+              <h3>📜 발송 이력</h3>
+            </div>
+            <div id="kakao-history"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== NOTICES TAB ========== -->
+      <div class="admin-tab-content" id="tab-notices">
+        <div class="admin-header">
+          <h1>📢 공지사항 관리</h1>
+          <div class="admin-header-actions">
+            <button class="btn btn-primary" onclick="toggleNoticeForm()">+ 새 공지 작성</button>
+          </div>
+        </div>
+
+        <!-- Notice Form -->
+        <div class="admin-card" id="notice-form-card" style="display:none;">
+          <div class="admin-card-header">
+            <h3>새 공지사항 작성</h3>
+            <button class="btn btn-sm btn-outline" onclick="toggleNoticeForm()">✕ 닫기</button>
+          </div>
+          <div class="admin-form-group" style="margin-bottom:16px;">
+            <label>제목 *</label>
+            <input type="text" class="admin-form-input" placeholder="공지 제목을 입력하세요" id="notice-title-input">
+          </div>
+          <div class="admin-form-group" style="margin-bottom:16px;">
+            <label>내용 *</label>
+            <textarea class="admin-form-textarea" placeholder="공지 내용을 작성하세요..." id="notice-content-input" style="min-height:150px;"></textarea>
+          </div>
+          <div class="admin-form-group" style="margin-bottom:16px;">
+            <label>상단 고정</label>
+            <div class="toggle-switch">
+              <div class="toggle-track" id="notice-pin-toggle" onclick="this.classList.toggle('active')">
+                <div class="toggle-thumb"></div>
+              </div>
+              <span class="toggle-label">상단 고정</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;">
+            <button class="btn btn-outline" onclick="toggleNoticeForm()">취소</button>
+            <button class="btn btn-primary" onclick="saveNotice()">📢 공지 등록</button>
+          </div>
+        </div>
+
+        <!-- Notice List -->
+        <div class="admin-card">
+          <table class="admin-table">
+            <thead>
+              <tr><th>상태</th><th>제목</th><th>작성일</th><th>관리</th></tr>
+            </thead>
+            <tbody id="admin-notice-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== CALENDAR TAB ========== -->
+      <div class="admin-tab-content" id="tab-calendar">
+        <div class="admin-header">
+          <h1>📅 입고 캘린더 관리</h1>
+          <div class="admin-header-actions">
+            <button class="btn btn-primary" onclick="toggleCalendarForm()">+ 입고 일정 추가</button>
+          </div>
+        </div>
+
+        <!-- Calendar Form -->
+        <div class="admin-card" id="calendar-form-card" style="display:none;">
+          <div class="admin-card-header">
+            <h3>새 입고 일정 등록</h3>
+            <button class="btn btn-sm btn-outline" onclick="toggleCalendarForm()">✕ 닫기</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div class="admin-form-group">
+              <label>입고 예정일 *</label>
+              <input type="date" class="admin-form-input" id="cal-date">
+            </div>
+            <div class="admin-form-group">
+              <label>입고 상품 설명 *</label>
+              <input type="text" class="admin-form-input" placeholder="예: 산리오 시리즈 20종" id="cal-title">
+            </div>
+            <div class="admin-form-group">
+              <label>상품 종류 수</label>
+              <input type="number" class="admin-form-input" placeholder="20" id="cal-items">
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-outline" onclick="toggleCalendarForm()">취소</button>
+            <button class="btn btn-primary" onclick="saveCalendarEvent()">📅 일정 등록</button>
+          </div>
+        </div>
+
+        <!-- Calendar List -->
+        <div class="admin-card">
+          <table class="admin-table">
+            <thead>
+              <tr><th>날짜</th><th>내용</th><th>종류</th><th>상품 수</th><th>관리</th></tr>
+            </thead>
+            <tbody id="admin-calendar-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== TAX TAB ========== -->
+      <div class="admin-tab-content" id="tab-tax">
+        <div class="admin-header">
+          <h1>🧾 세금계산서</h1>
+        </div>
+        <div class="admin-grid-equal">
+          <div class="admin-card">
+            <div class="admin-card-header"><h3>홈택스 바로가기</h3></div>
+            <div style="text-align:center;padding:40px;">
+              <div style="font-size:64px;margin-bottom:16px;">🏛️</div>
+              <p style="font-size:15px;color:var(--text-secondary);margin-bottom:24px;">국세청 홈택스에서 세금계산서를 발행할 수 있습니다.</p>
+              <a href="https://www.hometax.go.kr" target="_blank" class="btn btn-primary" style="text-decoration:none;">홈택스 바로가기 ↗</a>
+            </div>
+          </div>
+          <div class="admin-card">
+            <div class="admin-card-header"><h3>발행 현황 요약</h3></div>
+            <div style="padding:20px 0;">
+              <div style="display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border-light);">
+                <span style="color:var(--text-secondary);">이번 달 발행 건수</span>
+                <span style="font-weight:700;">12건</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border-light);">
+                <span style="color:var(--text-secondary);">이번 달 매출액</span>
+                <span style="font-weight:700;">₩28,700,000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border-light);">
+                <span style="color:var(--text-secondary);">전월 발행 건수</span>
+                <span style="font-weight:700;">18건</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:14px 0;">
+                <span style="color:var(--text-secondary);">전월 매출액</span>
+                <span style="font-weight:700;">₩22,300,000</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="admin-card" style="margin-top:24px;">
+          <div class="admin-card-header"><h3>최근 세금계산서 발행 이력</h3></div>
+          <table class="admin-table">
+            <thead><tr><th>발행일</th><th>거래처</th><th>공급가액</th><th>세액</th><th>합계</th><th>상태</th></tr></thead>
+            <tbody>
+              <tr><td>2026-03-28</td><td>스타뽑기 강남점</td><td>₩1,272,727</td><td>₩127,273</td><td>₩1,400,000</td><td><span class="status-badge status-completed">발행완료</span></td></tr>
+              <tr><td>2026-03-27</td><td>뽑기천국 인천</td><td>₩1,409,091</td><td>₩140,909</td><td>₩1,550,000</td><td><span class="status-badge status-completed">발행완료</span></td></tr>
+              <tr><td>2026-03-27</td><td>펀플레이 서울</td><td>₩327,273</td><td>₩32,727</td><td>₩360,000</td><td><span class="status-badge status-completed">발행완료</span></td></tr>
+              <tr><td>2026-03-26</td><td>스타뽑기 강남점</td><td>₩650,000</td><td>₩65,000</td><td>₩715,000</td><td><span class="status-badge status-completed">발행완료</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== SETTINGS TAB ========== -->
+      <div class="admin-tab-content" id="tab-settings">
+        <div class="admin-header">
+          <h1>⚙️ 설정</h1>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header"><h3>기본 설정</h3></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <div class="admin-form-group">
+              <label>상호명</label>
+              <input type="text" class="admin-form-input" value="토이상단">
+            </div>
+            <div class="admin-form-group">
+              <label>대표자명</label>
+              <input type="text" class="admin-form-input" value="홍길동">
+            </div>
+            <div class="admin-form-group">
+              <label>사업자등록번호</label>
+              <input type="text" class="admin-form-input" value="000-00-00000">
+            </div>
+            <div class="admin-form-group">
+              <label>연락처</label>
+              <input type="text" class="admin-form-input" value="010-0000-0000">
+            </div>
+            <div class="admin-form-group">
+              <label>카카오톡 채널 URL</label>
+              <input type="text" class="admin-form-input" value="https://pf.kakao.com/xxxx">
+            </div>
+            <div class="admin-form-group">
+              <label>카카오톡 오픈채팅 URL</label>
+              <input type="text" class="admin-form-input" value="https://open.kakao.com/o/xxxx">
+            </div>
+          </div>
+          <div style="margin-top:24px;display:flex;justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="showToast('설정이 저장되었습니다 ✅')">💾 설정 저장</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
