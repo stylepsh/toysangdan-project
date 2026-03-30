@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderOrders();
   renderMembers();
   renderKakaoHistory();
+  renderAdminQna();
   renderAdminNotices();
   renderAdminCalendar();
 });
@@ -29,7 +30,7 @@ function switchAdminTab(tab) {
   if (tabEl) tabEl.classList.add('active');
   
   const navItems = document.querySelectorAll('.admin-nav-item');
-  const tabMap = ['dashboard','products','orders','members','kakao','notices','calendar','tax','settings'];
+  const tabMap = ['dashboard','products','orders','members','kakao','qna','notices','calendar','tax','settings'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && navItems[idx]) navItems[idx].classList.add('active');
 }
@@ -778,6 +779,93 @@ function deleteCalendarEvent(idx) {
     CALENDAR_EVENTS.splice(idx, 1);
     renderAdminCalendar();
     showToast('🗑️ 일정이 삭제되었습니다.');
+  }
+}
+
+// ===== QNA MANAGEMENT =====
+function renderAdminQna() {
+  const filter = document.getElementById('qna-filter')?.value || '';
+  const filtered = QNA_LIST.filter(q => {
+    if (filter === 'pending') return !q.reply;
+    if (filter === 'replied') return !!q.reply;
+    return true;
+  });
+
+  const countEl = document.getElementById('qna-total-count');
+  if (countEl) countEl.textContent = filtered.length;
+
+  const el = document.getElementById('admin-qna-table');
+  if (!el) return;
+  el.innerHTML = filtered.map(q => `
+    <tr>
+      <td>${q.reply
+        ? '<span class="status-badge status-completed">답변완료</span>'
+        : '<span class="status-badge status-pending">미답변</span>'}</td>
+      <td style="font-weight:600;">${q.author}</td>
+      <td>
+        <div style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${q.title}</div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:2px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${q.content}</div>
+      </td>
+      <td>${q.date}</td>
+      <td>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm btn-primary" onclick="showQnaReplyModal(${q.id})">${q.reply ? '✏️ 수정' : '💬 답변'}</button>
+          <button class="btn btn-sm btn-outline" style="color:var(--danger);" onclick="deleteQna(${q.id})">🗑️</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showQnaReplyModal(id) {
+  const q = QNA_LIST.find(x => x.id === id);
+  if (!q) return;
+  document.getElementById('modal-content').innerHTML = `
+    <h2>💬 Q&A 답변</h2>
+    <div style="margin-bottom:20px;padding:16px;background:var(--bg);border-radius:var(--radius-md);border:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-weight:700;">${q.author}</span>
+        <span style="font-size:12px;color:var(--text-light);">${q.date}</span>
+      </div>
+      <h4 style="margin-bottom:8px;">${q.title}</h4>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;">${q.content}</p>
+    </div>
+    <div class="admin-form-group" style="margin-bottom:16px;">
+      <label>답변 내용</label>
+      <textarea class="admin-form-textarea" id="qna-reply-input" style="min-height:120px;" placeholder="답변을 작성하세요...">${q.reply || ''}</textarea>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveQnaReply(${q.id})">💬 답변 등록</button>
+    </div>
+  `;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function saveQnaReply(id) {
+  const reply = document.getElementById('qna-reply-input')?.value;
+  if (!reply) {
+    showToast('⚠️ 답변 내용을 입력해주세요.');
+    return;
+  }
+  const q = QNA_LIST.find(x => x.id === id);
+  if (q) {
+    q.reply = reply;
+    q.replyDate = new Date().toISOString().slice(0, 10);
+    showToast('✅ 답변이 등록되었습니다!');
+    closeModal();
+    renderAdminQna();
+  }
+}
+
+function deleteQna(id) {
+  if (confirm('이 질문을 삭제하시겠습니까?')) {
+    const idx = QNA_LIST.findIndex(q => q.id === id);
+    if (idx >= 0) {
+      QNA_LIST.splice(idx, 1);
+      renderAdminQna();
+      showToast('🗑️ 질문이 삭제되었습니다.');
+    }
   }
 }
 

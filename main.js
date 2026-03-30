@@ -465,6 +465,115 @@ function updateCartBadge() {
   if (badge) badge.textContent = cart.length;
 }
 
+// ===== MOBILE MENU =====
+function toggleMobileMenu() {
+  const nav = document.querySelector('.nav-menu');
+  const btn = document.getElementById('mobile-menu-btn');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  nav.classList.toggle('mobile-open');
+  btn.classList.toggle('open');
+  overlay.classList.toggle('show');
+}
+
+// ===== CART DRAWER =====
+function toggleCartDrawer() {
+  const drawer = document.getElementById('cart-drawer');
+  const overlay = document.getElementById('cart-drawer-overlay');
+  const isOpen = drawer.classList.contains('open');
+  if (isOpen) {
+    drawer.classList.remove('open');
+    overlay.classList.remove('show');
+  } else {
+    renderCartDrawer();
+    drawer.classList.add('open');
+    overlay.classList.add('show');
+  }
+}
+
+function renderCartDrawer() {
+  const body = document.getElementById('cart-drawer-body');
+  const footer = document.getElementById('cart-drawer-footer');
+
+  if (cart.length === 0) {
+    body.innerHTML = '<div class="cart-empty-state"><div style="font-size:48px;margin-bottom:12px;">🛒</div><p>장바구니가 비어있습니다.</p></div>';
+    footer.style.display = 'none';
+    return;
+  }
+
+  footer.style.display = 'block';
+  body.innerHTML = cart.map(item => {
+    const p = PRODUCTS.find(x => x.id === item.id);
+    return `
+      <div class="cart-drawer-item">
+        <div class="cart-drawer-item-img">
+          <img src="${p?.image || 'https://picsum.photos/56/56'}" alt="${item.name}">
+        </div>
+        <div class="cart-drawer-item-info">
+          <div class="cart-drawer-item-name">${item.name}</div>
+          <div class="cart-drawer-item-price">₩${(item.price * item.qty).toLocaleString()}</div>
+        </div>
+        <div class="cart-drawer-item-qty">
+          <button class="cart-qty-btn" onclick="updateCartQty('${item.id}', -1)">-</button>
+          <span style="font-size:14px;font-weight:700;min-width:24px;text-align:center;">${item.qty}</span>
+          <button class="cart-qty-btn" onclick="updateCartQty('${item.id}', 1)">+</button>
+        </div>
+        <button class="cart-drawer-item-remove" onclick="removeCartItem('${item.id}')">✕</button>
+      </div>
+    `;
+  }).join('');
+
+  const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  document.getElementById('cart-drawer-total-price').textContent = '₩' + total.toLocaleString();
+}
+
+function updateCartQty(id, delta) {
+  const item = cart.find(c => c.id === id);
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) {
+    cart = cart.filter(c => c.id !== id);
+  }
+  localStorage.setItem('toysangdan_cart', JSON.stringify(cart));
+  updateCartBadge();
+  renderCartDrawer();
+}
+
+function removeCartItem(id) {
+  cart = cart.filter(c => c.id !== id);
+  localStorage.setItem('toysangdan_cart', JSON.stringify(cart));
+  updateCartBadge();
+  renderCartDrawer();
+}
+
+function clearCart() {
+  if (confirm('장바구니를 비우시겠습니까?')) {
+    cart = [];
+    localStorage.setItem('toysangdan_cart', JSON.stringify(cart));
+    updateCartBadge();
+    renderCartDrawer();
+    showToast('🗑️ 장바구니가 비워졌습니다.');
+  }
+}
+
+function submitCartOrder() {
+  if (cart.length === 0) return;
+  const isLoggedIn = localStorage.getItem('toysangdan_logged_in') === 'true';
+  if (!isLoggedIn) {
+    if (confirm('로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?')) {
+      window.location.href = 'login.html';
+    }
+    return;
+  }
+  const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const itemCount = cart.length;
+  alert(`주문이 접수되었습니다!\n\n상품 ${itemCount}종 / 합계 ₩${total.toLocaleString()}\n\n입금 확인 후 발송 처리됩니다.\n카카오톡 채널로 주문 상세를 안내드리겠습니다.`);
+  cart = [];
+  localStorage.setItem('toysangdan_cart', JSON.stringify(cart));
+  updateCartBadge();
+  renderCartDrawer();
+  toggleCartDrawer();
+}
+
 // Toast
 function showToast(msg) {
   const t = document.getElementById('toast');

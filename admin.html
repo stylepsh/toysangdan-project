@@ -36,6 +36,9 @@
         <div class="admin-nav-item" onclick="switchAdminTab('kakao')">
           <span class="icon">💬</span><span>카톡 메시지</span>
         </div>
+        <div class="admin-nav-item" onclick="switchAdminTab('qna')">
+          <span class="icon">❓</span><span>Q&A 관리</span>
+        </div>
         <div class="admin-nav-item" onclick="switchAdminTab('notices')">
           <span class="icon">📢</span><span>공지사항</span>
         </div>
@@ -321,21 +324,6 @@
         </div>
 
         <!-- Order Stats -->
-        <div class="filter-bar">
-          <input type="date" class="admin-form-input" id="order-date-from" style="min-width:160px;">
-          <span style="color:var(--text-light);">~</span>
-          <input type="date" class="admin-form-input" id="order-date-to" style="min-width:160px;">
-          <select class="admin-form-select" id="order-status-filter" onchange="renderOrders()">
-            <option value="">전체 상태</option>
-            <option value="pending">입금대기</option>
-            <option value="confirmed">입금확인</option>
-            <option value="shipped">발송완료</option>
-            <option value="completed">거래완료</option>
-          </select>
-          <button class="btn btn-sm btn-primary" onclick="renderOrders()">검색</button>
-        </div>
-
-        <!-- Order Stats -->
         <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
           <div style="padding:12px 20px;background:#FFF3E0;border-radius:var(--radius-md);font-size:14px;font-weight:600;color:#E65100;">
             ⏳ 입금대기 <span id="os-pending">0</span>건
@@ -441,6 +429,31 @@
             </div>
             <div id="kakao-history"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ========== QNA TAB ========== -->
+      <div class="admin-tab-content" id="tab-qna">
+        <div class="admin-header">
+          <h1>❓ Q&A 관리</h1>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>질문 목록 (<span id="qna-total-count">0</span>건)</h3>
+            <div style="display:flex;gap:8px;">
+              <select class="admin-form-select" id="qna-filter" onchange="renderAdminQna()" style="min-width:120px;">
+                <option value="">전체</option>
+                <option value="pending">미답변</option>
+                <option value="replied">답변완료</option>
+              </select>
+            </div>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr><th>상태</th><th>작성자</th><th>제목</th><th>작성일</th><th>관리</th></tr>
+            </thead>
+            <tbody id="admin-qna-table"></tbody>
+          </table>
         </div>
       </div>
 
