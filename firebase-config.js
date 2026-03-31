@@ -3,12 +3,13 @@
 // Firebase Console > 프로젝트 설정 > 일반 > 내 앱 > Firebase SDK snippet
 
 const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC_9yT0h3bjxPGjYVTtrwSX5Q4WvdtahYQ",
+  authDomain: "toysangdan.firebaseapp.com",
+  projectId: "toysangdan",
+  storageBucket: "toysangdan.firebasestorage.app",
+  messagingSenderId: "697286737301",
+  appId: "1:697286737301:web:d26c2c3a9a6123f21f0a9c",
+  measurementId: "G-3J6HSMRJ36"
 };
 
 // Firebase 초기화
